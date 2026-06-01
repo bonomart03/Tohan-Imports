@@ -1,0 +1,302 @@
+import os
+from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, session
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+
+app = Flask(__name__)
+
+# --- CONFIGURACIÓN PRINCIPAL ---
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+app.config['SECRET_KEY'] = 'clave_secreta_tohan_2026'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tohan_imports.db' # Unificamos en una sola base
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Inicializamos la base de datos UNA SOLA VEZ
+db = SQLAlchemy(app)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+# --- MODELOS DE BASE DE DATOS ---
+class Admin(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+
+class Producto(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    marca = db.Column(db.String(50), nullable=False)
+    categoria = db.Column(db.String(50), nullable=False, default='General') # ¡NUEVA COLUMNA DE CATEGORÍA!
+    descripcion = db.Column(db.Text, nullable=False)
+    precio = db.Column(db.Float, nullable=False)
+    stock = db.Column(db.Integer, nullable=False)
+    imagen = db.Column(db.String(255), nullable=True)
+
+class Venta(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    nombre_cliente = db.Column(db.String(100), nullable=False)
+    telefono = db.Column(db.String(20), nullable=False)
+    direccion = db.Column(db.String(150), nullable=False)
+    zona_envio = db.Column(db.String(50), nullable=False) # Ej: Centro, Nueva Córdoba, Alberdi
+    estado = db.Column(db.String(20), default='Pendiente') # Pendiente, Preparando, En camino, Entregado
+    total = db.Column(db.Float, nullable=False)
+
+    # Relación para conectar la Venta con sus Detalles
+    detalles = db.relationship('DetalleVenta', backref='venta', lazy=True)
+
+class DetalleVenta(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    venta_id = db.Column(db.Integer, db.ForeignKey('venta.id'), nullable=False)
+    producto_id = db.Column(db.Integer, db.ForeignKey('producto.id'), nullable=False)
+    cantidad = db.Column(db.Integer, nullable=False)
+    precio_unitario = db.Column(db.Float, nullable=False)
+
+# --- INICIALIZACIÓN AUTOMÁTICA ---
+with app.app_context():
+    db.create_all()
+    # Si no hay ningún administrador, creamos el tuyo por defecto
+    if not Admin.query.first():
+        usuario_admin = Admin(username='bono_admin', password_hash=generate_password_hash('admin123'))
+        db.session.add(usuario_admin)
+        db.session.commit()
+
+# --- RUTAS PÚBLICAS (Actualizada con Buscador y Filtro por Categoría) ---
+@app.route('/')
+def catalogo():
+    # 1. Capturamos lo que el usuario escribió en la barra de búsqueda (si buscó algo)
+    busqueda = request.args.get('q', '')
+    # Capturamos la categoría seleccionada por los botones rápidos
+    categoria_seleccionada = request.args.get('categoria', '')
+
+    # 2. Empezamos filtrando solo los productos que tengan stock disponible
+    query = Producto.query.filter(Producto.stock > 0)
+
+    # 3. Aplicamos los filtros
+    if busqueda:
+        termino = f"%{busqueda}%" # Le agregamos los comodines '%' para que busque coincidencias parciales
+        query = query.filter((Producto.nombre.ilike(termino)) | (Producto.marca.ilike(termino)))
+    
+    if categoria_seleccionada:
+        query = query.filter_by(categoria=categoria_seleccionada)
+    
+    # 4. Ejecutamos la consulta y traemos los resultados
+    productos_disponibles = query.all()
+
+    # Le enviamos al HTML los productos, la palabra buscada y la categoría para pintar el botón activo
+    return render_template('catalogo.html', productos=productos_disponibles, busqueda=busqueda, categoria_seleccionada=categoria_seleccionada)
+
+
+# --- RUTAS DE ADMINISTRACIÓN ---
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        usuario_ingresado = request.form.get('usuario')
+        password_ingresado = request.form.get('password')
+
+        # Buscamos en la nueva tabla Admin
+        admin_db = Admin.query.filter_by(username=usuario_ingresado).first()
+
+        if admin_db and check_password_hash(admin_db.password_hash, password_ingresado):
+            session['admin'] = admin_db.username
+            return redirect(url_for('panel_admin'))
+        else:
+            error = 'Usuario o contraseña incorrectos.'
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('admin', None)
+    return redirect(url_for('login'))
+
+@app.route('/admin')
+def panel_admin():
+    if 'admin' not in session:
+        return redirect(url_for('login'))
+
+    todos_productos = Producto.query.all()
+    # Traemos las ventas ordenadas por fecha (las más nuevas primero)
+    todas_ventas = Venta.query.order_by(Venta.fecha.desc()).all()
+
+    return render_template('panel.html', productos=todos_productos, ventas=todas_ventas)
+
+@app.route('/admin/cambiar_estado/<int:id>', methods=['POST'])
+def cambiar_estado(id):
+    if 'admin' not in session:
+        return redirect(url_for('login'))
+
+    venta_a_actualizar = Venta.query.get_or_404(id)
+    nuevo_estado = request.form.get('estado')
+
+    # Actualizamos el estado logístico
+    venta_a_actualizar.estado = nuevo_estado
+    db.session.commit()
+
+    return redirect(url_for('panel_admin'))
+
+@app.route('/admin/agregar', methods=['POST'])
+def agregar_producto():
+    if 'admin' not in session:
+        return redirect(url_for('login'))
+
+    nombre = request.form.get('nombre')
+    marca = request.form.get('marca')
+    categoria = request.form.get('categoria') # Capturamos la categoría del form
+    descripcion = request.form.get('descripcion')
+    precio = float(request.form.get('precio'))
+    stock = int(request.form.get('stock'))
+
+    nombre_archivo = None
+    if 'foto' in request.files:
+        file = request.files['foto']
+        if file and file.filename != '' and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            
+            # Definimos la ruta exacta
+            ruta_guardado = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+            # Guardamos la imagen intacta, sin procesarla
+            file.save(ruta_guardado)
+            nombre_archivo = filename 
+
+    nuevo_prod = Producto(
+        nombre=nombre, marca=marca, categoria=categoria, descripcion=descripcion,
+        precio=precio, stock=stock, imagen=nombre_archivo
+    )
+    db.session.add(nuevo_prod)
+    db.session.commit()
+
+    return redirect(url_for('panel_admin'))
+
+@app.route('/admin/eliminar/<int:id>', methods=['POST'])
+def eliminar_producto(id):
+    if 'admin' not in session:
+        return redirect(url_for('login'))
+
+    producto_a_borrar = Producto.query.get_or_404(id)
+
+    if producto_a_borrar.imagen:
+        ruta_imagen = os.path.join(app.config['UPLOAD_FOLDER'], producto_a_borrar.imagen)
+        if os.path.exists(ruta_imagen):
+            os.remove(ruta_imagen)
+
+    db.session.delete(producto_a_borrar)
+    db.session.commit()
+
+    return redirect(url_for('panel_admin'))
+
+# --- RUTAS DEL CARRITO ---
+
+@app.route('/agregar_carrito/<int:id>')
+def agregar_carrito(id):
+    producto = Producto.query.get_or_404(id)
+
+    # Si el cliente todavía no tiene un carrito, le creamos uno vacío
+    if 'carrito' not in session:
+        session['carrito'] = {}
+
+    # Flask requiere que las claves de la sesión sean texto (strings)
+    prod_id = str(id)
+
+    # Si el producto ya está en el carrito, sumamos 1 a la cantidad
+    if prod_id in session['carrito']:
+        session['carrito'][prod_id]['cantidad'] += 1
+    else:
+        # Si no está, lo agregamos con todos sus datos
+        session['carrito'][prod_id] = {
+            'nombre': producto.nombre,
+            'marca': producto.marca,
+            'precio': producto.precio,
+            'cantidad': 1
+        }
+
+    # Le avisamos a Flask que modificamos el diccionario para que lo guarde
+    session.modified = True
+    return redirect(url_for('catalogo'))
+
+@app.route('/carrito')
+def ver_carrito():
+    carrito = session.get('carrito', {})
+    total = sum(item['precio'] * item['cantidad'] for item in carrito.values())
+    return render_template('carrito.html', carrito=carrito, total=total)
+
+@app.route('/procesar_compra', methods=['POST'])
+def procesar_compra():
+    carrito = session.get('carrito', {})
+    if not carrito:
+        return redirect(url_for('catalogo'))
+
+    # 1. Capturamos los datos del formulario del cliente
+    nombre = request.form.get('nombre')
+    telefono = request.form.get('telefono')
+    direccion = request.form.get('direccion')
+    zona = request.form.get('zona')
+
+    total = sum(item['precio'] * item['cantidad'] for item in carrito.values())
+
+    # 2. Registramos la cabecera de la Venta en la Base de Datos
+    nueva_venta = Venta(
+        nombre_cliente=nombre,
+        telefono=telefono,
+        direccion=direccion,
+        zona_envio=zona,
+        total=total,
+        estado='Pendiente' # Estado inicial para logística
+    )
+    db.session.add(nueva_venta)
+    db.session.commit() # Commiteamos acá para generar el ID de la venta
+
+    # 3. Recorremos los productos del carrito para guardar el ticket detallado
+    mensaje_articulos = ""
+    for prod_id, item in carrito.items():
+        detalle = DetalleVenta(
+            venta_id=nueva_venta.id,
+            producto_id=int(prod_id),
+            cantidad=item['cantidad'],
+            precio_unitario=item['precio']
+        )
+        db.session.add(detalle)
+
+        # Descontamos el stock físico del producto directamente
+        prod_db = Producto.query.get(int(prod_id))
+        if prod_db:
+            prod_db.stock -= item['cantidad']
+
+        mensaje_articulos += f"- {item['cantidad']}x {item['nombre']} ({item['marca']})%0A"
+
+    db.session.commit() # Guardamos los detalles y la actualización del stock
+
+    # 4. Limpiamos la memoria del carrito
+    session.pop('carrito', None)
+
+    # 5. Construimos el mensaje comercial estructurado para WhatsApp
+    numero_tienda = "5491151129329"
+
+    mensaje_wa = f"¡Nuevo Pedido Registrado! (Orden %23{nueva_venta.id})%0A%0A"
+    mensaje_wa += f"👤 *Cliente:* {nombre}%0A"
+    mensaje_wa += f"📞 *Teléfono:* {telefono}%0A"
+    mensaje_wa += f"📍 *Dirección:* {direccion}%0A"
+    mensaje_wa += f"🚚 *Zona de Envío:* {zona}%0A%0A"
+    mensaje_wa += f"📦 *Detalle del Pedido:*%0A{mensaje_articulos}%0A"
+    mensaje_wa += f"💰 *Total a pagar:* ${total:,.2f}"
+
+    url_whatsapp = f"https://wa.me/{numero_tienda}?text={mensaje_wa}"
+
+    # Redirección limpia al chat de WhatsApp
+    return redirect(url_whatsapp)
+
+@app.route('/vaciar_carrito')
+def vaciar_carrito():
+    session.pop('carrito', None)
+    return redirect(url_for('catalogo'))
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)

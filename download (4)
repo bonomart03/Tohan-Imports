@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tohan.Imports - Catálogo Tecnológico</title>
+
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo_tohan.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <header class="vapor-header">
+        <div class="header-container">
+            <a href="/" class="brand-logo">
+                <img src="{{ url_for('static', filename='logo_tohan.png') }}" alt="Logo Tohan Imports" style="height: 55px; border-radius: 50%; box-shadow: 0 0 15px rgba(0, 102, 255, 0.4);">
+            </a>
+
+            <nav class="main-nav">
+                {% if session.get('admin') %}
+                <a href="{{ url_for('panel_admin') }}" class="btn-control-panel">
+                    Panel de Control
+                </a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero-section">
+        <span class="pill-badge">Importaciones Directas</span>
+        <h1 class="display-title">Tohan <span class="text-gradient">Imp</span></h1>
+        <p class="subtitle">Dispositivos y accesorios de alta gama listos para entrega inmediata. Hardware certificado al mejor precio.</p>
+    </section>
+
+    <main class="main-container">
+        
+        <div class="search-container">
+            <form action="/" method="GET" class="search-form">
+                <input type="text" name="q" class="search-input" placeholder="Buscar por marca o modelo..." value="{{ busqueda }}">
+                <button type="submit" class="search-btn">🔍 Buscar</button>
+            </form>
+            
+            {% if busqueda %}
+            <div class="search-results-info">
+                <p>Resultados para: <span class="text-gradient">"{{ busqueda }}"</span></p>
+                <a href="/" class="clear-search-btn">✖ Limpiar Filtro</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="category-filters">
+            <a href="/" class="filter-btn {% if not categoria_seleccionada %}active{% endif %}">Todos</a>
+            <a href="/?categoria=Audio" class="filter-btn {% if categoria_seleccionada == 'Audio' %}active{% endif %}">Audio</a>
+            <a href="/?categoria=Hardware" class="filter-btn {% if categoria_seleccionada == 'Hardware' %}active{% endif %}">Hardware</a>
+            <a href="/?categoria=Accesorios" class="filter-btn {% if categoria_seleccionada == 'Accesorios' %}active{% endif %}">Accesorios</a>
+            <a href="/?categoria=Vapers" class="filter-btn {% if categoria_seleccionada == 'Vapers' %}active{% endif %}">Vapers</a>
+            <a href="/?categoria=Otros" class="filter-btn {% if categoria_seleccionada == 'Otros' %}active{% endif %}">Otros</a>
+        </div>
+
+        <div class="product-grid">
+
+            {% for producto in productos %}
+            <div class="product-card" style="--animation-order: {{ loop.index }}">
+                <div class="card-img-wrapper">
+
+                    {% if producto.stock <= 3 %}
+                    <div class="badge-urgente">Últimas {{ producto.stock }} unidades</div>
+                    {% endif %}
+
+                    <span class="brand-tag">{{ producto.marca }} | {{ producto.categoria }}</span>
+
+                    {% if producto.imagen %}
+                    <img src="{{ url_for('static', filename='uploads/' + producto.imagen) }}" alt="{{ producto.nombre }}">
+                    {% else %}
+                    <div class="no-img">Sin imagen disponible</div>
+                    {% endif %}
+                </div>
+
+                <div class="card-content">
+                    <h3 class="product-title">{{ producto.nombre }}</h3>
+                    <p class="product-desc">{{ producto.descripcion }}</p>
+
+                    <div class="card-footer-custom">
+                        <span class="product-price">${{ "{:,.2f}".format(producto.precio) }}</span>
+                        <a href="{{ url_for('agregar_carrito', id=producto.id) }}" class="btn-buy">Agregar</a>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                {% if busqueda %}
+                <h3>No encontramos "{{ busqueda }}"</h3>
+                <p>Intentá buscando con otra palabra o marca.</p>
+                {% elif categoria_seleccionada %}
+                <h3>No hay productos en la categoría "{{ categoria_seleccionada }}"</h3>
+                <p>Estamos renovando nuestro stock. Volvé a revisar más tarde.</p>
+                {% else %}
+                <h3>No hay productos disponibles momentáneamente</h3>
+                <p>Estamos renovando nuestro stock de importaciones. Volvé a ingresar más tarde.</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+        </div>
+    </main>
+
+    <section class="social-proof-section">
+        <div class="social-proof-container">
+            <h2 class="section-title">Clientes <span class="text-gradient">Verificados</span></h2>
+            <div class="testimonials-grid">
+                
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"Excelente atención. Compré unos auriculares y me llegaron en el día en caja sellada. Súper recomendables."</p>
+                    <span class="testimonial-author">- Martín G. (San Martín)</span>
+                </div>
+
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"Tenía miedo de comprar hardware por internet pero me pasaron factura y todo de diez. El teclado vuela."</p>
+                    <span class="testimonial-author">- Lucía F. (CABA)</span>
+                </div>
+
+                <div class="testimonial-card">
+                    <div class="stars">★★★★★</div>
+                    <p class="testimonial-text">"Atención por WhatsApp rapidísima. Quedamos en un punto de entrega y salió todo perfecto. 10/10."</p>
+                    <span class="testimonial-author">- Diego R. (Caseros)</span>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section class="faq-section">
+        <div class="faq-container">
+            <h2 class="section-title">Dudas <span class="text-gradient">Frecuentes</span></h2>
+            
+            <div class="faq-list">
+                <details class="faq-item">
+                    <summary>¿Hacen envíos a todo el país?</summary>
+                    <div class="faq-answer">Sí, realizamos envíos a todo el país mediante correo certificado. Si estás en CABA o GBA, coordinamos envíos en el día por mensajería privada.</div>
+                </details>
+
+                <details class="faq-item">
+                    <summary>¿Qué medios de pago aceptan?</summary>
+                    <div class="faq-answer">Aceptamos transferencias bancarias, Mercado Pago (dinero en cuenta) y efectivo al momento de la entrega si estás en nuestra zona de cobertura.</div>
+                </details>
+
+                <details class="faq-item">
+                    <summary>¿Los productos tienen garantía?</summary>
+                    <div class="faq-answer">Todos nuestros productos son 100% originales, en caja sellada y cuentan con garantía de fábrica por defectos de funcionamiento.</div>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <footer class="cyber-footer">
+        <div class="footer-container">
+
+            <div class="footer-col brand-col">
+                <img src="{{ url_for('static', filename='logo_tohan.png') }}" alt="Tohan Imports" class="footer-logo">
+                <p>Importaciones directas de tecnología de alta gama. Entrega inmediata y garantía.</p>
+                <div class="data-fiscal-box">
+                    <span style="font-size: 0.7rem; color: #666;">[ QR Data Fiscal ]</span>
+                </div>
+            </div>
+
+            <div class="footer-col">
+                <h4>🔒 Sitio SSL Seguro</h4>
+                <p>Certificado de seguridad para transacciones encriptadas. Verificá el candado en tu navegador.</p>
+
+                <h4 style="margin-top: 1.5rem;">💳 Medios de Pago</h4>
+                <div class="payment-badges">
+                    <span class="pay-badge">Visa</span>
+                    <span class="pay-badge">MasterCard</span>
+                    <span class="pay-badge">MercadoPago</span>
+                    <span class="pay-badge">Transferencia</span>
+                </div>
+            </div>
+
+            <div class="footer-col">
+                <h4>Contacto</h4>
+                <ul class="contact-list">
+                    <li>📱 <a href="https://wa.me/5491151129329" target="_blank">WhatsApp: +54 9 11 5112-9329</a></li>
+                    <li>✉️ <a href="mailto:bono.martienez03@gmail.com">bono.martienez03@gmail.com</a></li>
+                    <li>📍 San Martín, Provincia de Buenos Aires, Argentina</li>
+                </ul>
+
+                <h4 style="margin-top: 1.5rem;">¡Seguinos!</h4>
+                <div class="social-links">
+                    <a href="https://www.instagram.com/tohan_imp?igsh=MXExbTl5YW5xbmpvZQ==" target="_blank" class="social-btn">Instagram</a>
+                    <a href="https://www.facebook.com/share/1EnTUc6P5h/?mibextid=wwXIfr" target="_blank" class="social-btn">Facebook</a>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; 2026 Tohan.Imports - Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <a href="{{ url_for('ver_carrito') }}" class="floating-cart">
+        🛒 Ver mi Pedido
+    </a>
+
+</body>
+</html>

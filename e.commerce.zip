@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Tohan.Imports</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body { background-color: #030305; color: #ffffff; }
+        .card-custom { background-color: #0d0d12; border: 1px solid rgba(255, 255, 255, 0.05); }
+        .btn-tech { background-color: #0066ff; color: white; border: none; transition: 0.3s;}
+        .btn-tech:hover { background-color: #0052cc; color: white; }
+
+        /* Estilos para las Pestañas (Tabs) */
+        .nav-tabs { border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .nav-tabs .nav-link { color: #9ba1a6; border: none; }
+        .nav-tabs .nav-link.active {
+            color: #0066ff;
+            background: transparent;
+            border-bottom: 2px solid #0066ff;
+            font-weight: bold;
+        }
+
+        /* Colores de los estados de envío */
+        .estado-Pendiente { background-color: #ffc107; color: #000; font-weight: bold;}
+        .estado-Preparando { background-color: #17a2b8; color: #fff; font-weight: bold;}
+        .estado-En-camino { background-color: #0066ff; color: #fff; font-weight: bold;}
+        .estado-Entregado { background-color: #198754; color: #fff; font-weight: bold;}
+    </style>
+</head>
+<body class="py-4">
+    <div class="container-fluid px-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 style="font-weight: 800;">⚙️ Panel de Administración</h2>
+            <div>
+                <a href="{{ url_for('catalogo') }}" class="btn btn-outline-light me-2">Ver Tienda</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-danger">Cerrar Sesión</a>
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs mb-4" id="panelTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="logistica-tab" data-bs-toggle="tab" data-bs-target="#logistica" type="button" role="tab">
+                    🚚 Logística y Despachos
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="inventario-tab" data-bs-toggle="tab" data-bs-target="#inventario" type="button" role="tab">
+                    📦 Inventario de Productos
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="panelTabsContent">
+
+            <div class="tab-pane fade show active" id="logistica" role="tabpanel">
+                <div class="card card-custom p-4 shadow-lg rounded-4">
+                    <h4 class="mb-4 text-primary">Órdenes Recientes</h4>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th># Orden</th>
+                                    <th>Fecha</th>
+                                    <th>Cliente</th>
+                                    <th>Zona / Dirección</th>
+                                    <th>Total</th>
+                                    <th>Estado Actual</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for venta in ventas %}
+                                <tr>
+                                    <td><strong>#{{ venta.id }}</strong></td>
+                                    <td>{{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>
+                                        {{ venta.nombre_cliente }}<br>
+                                        <small style="color: #9ba1a6;">📞 {{ venta.telefono }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary mb-1">{{ venta.zona_envio }}</span><br>
+                                        <small style="color: #9ba1a6;">📍 {{ venta.direccion }}</small>
+                                    </td>
+                                    <td>${{ "{:,.2f}".format(venta.total) }}</td>
+                                    <td>
+                                        <span class="badge estado-{{ venta.estado | replace(' ', '-') }}">
+                                            {{ venta.estado }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <form action="{{ url_for('cambiar_estado', id=venta.id) }}" method="POST" class="d-flex gap-2">
+                                            <select name="estado" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: auto;">
+                                                <option value="Pendiente" {% if venta.estado == 'Pendiente' %}selected{% endif %}>Pendiente</option>
+                                                <option value="Preparando" {% if venta.estado == 'Preparando' %}selected{% endif %}>Preparando</option>
+                                                <option value="En camino" {% if venta.estado == 'En camino' %}selected{% endif %}>En camino</option>
+                                                <option value="Entregado" {% if venta.estado == 'Entregado' %}selected{% endif %}>Entregado</option>
+                                            </select>
+                                            <button type="submit" class="btn btn-sm btn-tech">Actualizar</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-4" style="color: #9ba1a6;">No hay ventas registradas todavía.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="inventario" role="tabpanel">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="card card-custom p-4 shadow-lg rounded-4">
+                            <h4 class="mb-4 text-primary">Agregar Producto</h4>
+                            <form action="/admin/agregar" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label" style="color: #9ba1a6; font-size: 0.85rem;">Nombre del Producto</label>
+                                    <input type="text" name="nombre" class="form-control bg-dark text-white border-secondary" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" style="color: #9ba1a6; font-size: 0.85rem;">Marca (Ej: Apple, Samsung)</label>
+                                    <input type="text" name="marca" class="form-control bg-dark text-white border-secondary" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" style="color: #9ba1a6; font-size: 0.85rem;">Categoría</label>
+                                    <select name="categoria" class="form-select bg-dark text-white border-secondary" required>
+                                        <option value="Audio">Auriculares & Audio</option>
+                                        <option value="Hardware">Hardware & PC</option>
+                                        <option value="Accesorios">Accesorios & Cables</option>
+                                        <option value="Vapers">Vapers & Pods</option>
+                                        <option value="Otros">Otros</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label" style="color: #9ba1a6; font-size: 0.85rem;">Descripción detallada</label>
+                                    <textarea name="descripcion" class="form-control bg-dark text-white border-secondary" rows="3" required></textarea>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label" style="color: #9ba1a6; font-size: 0.85rem;">Precio de Venta ($)</label>
+                                        <input type="number" name="precio" step="0.01" class="form-control bg-dark text-white border-secondary" required>
+                                    </div>
+                                    <div class="col-6 mb-3">
+                                        <label class="form-label" style="color: #9ba1a6; font-size: 0.85rem;">Cantidad en Stock</label>
+                                        <input type="number" name="stock" class="form-control bg-dark text-white border-secondary" required>
+                                    </div>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label" style="color: #9ba1a6; font-size: 0.85rem;">Foto del producto</label>
+                                    <input type="file" name="foto" class="form-control bg-dark text-white border-secondary" accept="image/*">
+                                </div>
+                                <button type="submit" class="btn btn-tech w-100 fw-bold">Guardar en Inventario</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="col-md-8">
+                        <div class="card card-custom p-4 shadow-lg rounded-4">
+                            <h4 class="mb-4 text-primary">Stock Actual</h4>
+                            <div class="table-responsive">
+                                <table class="table table-dark align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Imagen</th>
+                                            <th>Producto</th>
+                                            <th>Precio</th>
+                                            <th>Stock</th>
+                                            <th>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for prod in productos %}
+                                        <tr>
+                                            <td>
+                                                {% if prod.imagen %}
+                                                <img src="{{ url_for('static', filename='uploads/' + prod.imagen) }}" width="50" class="rounded" style="object-fit: cover;">
+                                                {% else %}
+                                                <span class="text-muted">Sin foto</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <strong>{{ prod.nombre }}</strong><br>
+                                                <small class="text-muted">{{ prod.marca }} | {{ prod.categoria }}</small>
+                                            </td>
+                                            <td>${{ "{:,.2f}".format(prod.precio) }}</td>
+                                            <td>
+                                                {% if prod.stock <= 2 %}
+                                                    <span class="text-danger fw-bold">{{ prod.stock }} (Bajo)</span>
+                                                {% else %}
+                                                    <span class="text-success">{{ prod.stock }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="d-flex gap-2">
+                                                    <button class="btn btn-sm btn-outline-info btn-copy-ig"
+                                                            data-nombre="{{ prod.nombre }}"
+                                                            data-marca="{{ prod.marca }}"
+                                                            data-precio="{{ '{:,.2f}'.format(prod.precio) }}"
+                                                            data-desc="{{ prod.descripcion }}">
+                                                        📱 IG
+                                                    </button>
+
+                                                    <form action="{{ url_for('eliminar_producto', id=prod.id) }}" method="POST" onsubmit="return confirm('¿Seguro que querés borrar este producto?');">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger">Borrar</button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% else %}
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4" style="color: #9ba1a6;">No hay productos en el inventario.</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+</body>
+</html>
