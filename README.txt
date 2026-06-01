@@ -1,20 +1,18 @@
-# Load up standard site-wide settings.
-source /etc/bashrc
+# Tohan.Imports - Catálogo Tecnológico Premium 🚀
 
-#remove duplicate entries from history
-export HISTCONTROL=ignoreboth
+E-commerce y catálogo digital autogestionable con una interfaz inmersiva basada en una estética **Cyberpunk / Cyber-Glow**. Diseñado para optimizar la experiencia de usuario en dispositivos móviles y brindar un control logístico riguroso desde el backend.
 
-# Show current git branch in prompt.
-function parse_git_branch {
-  git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/(\1)/'
-}
-RED="\[\033[0;31m\]"
-YELLOW="\[\033[0;33m\]"
-GREEN="\[\033[0;32m\]"
-LIGHT_GREEN="\[\033[1;32m\]"
-RESET_COLOR="\[\033[0;0m\]"
+## 🛠️ Tecnologías Utilizadas
 
-PS1="$RESET_COLOR\$(date +%H:%M) \w$YELLOW \$(parse_git_branch)$LIGHT_GREEN\$ $RESET_COLOR"
+* **Backend:** Python 3 + Flask (Microframework)
+* **Persistencia de Datos:** SQLite unificado a través de Flask-SQLAlchemy (ORM)
+* **Seguridad:** Werkzeug (Hashing seguro para contraseñas de administración) y Flask Sessions para manejo de carritos temporales
+* **Frontend:** HTML5, CSS3 (Variables nativas, animaciones `@keyframes` optimizadas) y Bootstrap 5 para el panel administrativo
 
-# Load virtualenvwrapper
-source virtualenvwrapper.sh &> /dev/null
+## 💎 Características Principales
+
+* **Buscador Inteligente:** Motor de búsqueda dinámico integrado en el backend mediante filtros de coincidencia parcial (`.ilike()`).
+* **Filtros Rápidos por Categoría:** Clasificación e indexación en tiempo real (Audio, Hardware, Accesorios, Vapers).
+* **Panel de Control Administrativo Seguro:** * Módulo de logística y despachos con actualización de estados en tiempo real.
+  * Módulo de inventario para altas, bajas y control automático de stock crítico.
+* **Carrito de Compras Integrado:** Flujo comercial que procesa el ticket de compra y genera una orden estructurada automatizada para la coordinación final.
